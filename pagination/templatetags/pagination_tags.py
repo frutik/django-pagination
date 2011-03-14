@@ -240,27 +240,20 @@ register.inclusion_tag('pagination/pagination.html', takes_context=True)(
     default_paginate)
 register.tag('autopaginate', do_autopaginate)
 
-
 class PaginateWithTemplate(template.Node):
-    def __init__(self, template_path):
+    def __init__(self, template_path, default_template='pagination/pagination.html'):
         self.template_path = template.Variable(template_path)
+        self.default_template = default_template
 
-    def redner(self, context):
-        if not getattr(self, 'nodelist', False):
-            from django.template.loader import get_template, select_template
-            if not isinstance(self.template_path, basestring) and is_iterable(self.template_path):
-                t = select_template(self.template_path)
-            else:
-                t = get_template(self.template_path)
-            self.nodelist = t.nodelist
-        # actually isn't this were we should take in the current context?
-        new_context = Context(dict, autoescape=context.autoescape)
-        csrf_token = context.get('csrf_token', None)
-        if csrf_token is not None:
-            new_context['csrf_token'] = csrf_token
-
-        #derp: where do we call paginate? template tags, how the hell do they work
-        return self.nodelist.render(new_context)
+    def render(self, context):
+        from django.template.loader import get_template, select_template
+        try:
+            t = get_template(self.template_path)
+        except:
+            # wut if dis blows up
+            t = get_template('pagination/pagination.html')
+        c = paginate(context)
+        return t.render(c)
 
 def do_paginate_with_template(parser, token):
     try:
@@ -270,47 +263,3 @@ def do_paginate_with_template(parser, token):
     return PaginateWithTemplate(template_path)
 
 register.tag('paginate_template', do_pageinate_with_template)
-
-#def inclusion_tag(self, file_name, context_class=Context, takes_context=False):
-    #def dec(func):
-        #params, xx, xxx, defaults = getargspec(func)
-        #if takes_context:
-            #if params[0] == 'context':
-                #params = params[1:]
-            #else:
-                #raise TemplateSyntaxError("Any tag function decorated with takes_context=True must have a first argument of 'context'")
-
-        #class InclusionNode(Node):
-            #def __init__(self, vars_to_resolve):
-                #self.vars_to_resolve = map(Variable, vars_to_resolve)
-
-            #def render(self, context):
-                #resolved_vars = [var.resolve(context) for var in self.vars_to_resolve]
-                #if takes_context:
-                    #args = [context] + resolved_vars
-                #else:
-                    #args = resolved_vars
-
-                #dict = func(*args)
-
-                #if not getattr(self, 'nodelist', False):
-                    #from django.template.loader import get_template, select_template
-                    #if not isinstance(file_name, basestring) and is_iterable(file_name):
-                        #t = select_template(file_name)
-                    #else:
-                        #t = get_template(file_name)
-                    #self.nodelist = t.nodelist
-                #new_context = context_class(dict, autoescape=context.autoescape)
-                ## Copy across the CSRF token, if present, because inclusion
-                ## tags are often used for forms, and we need instructions
-                ## for using CSRF protection to be as simple as possible.
-                #csrf_token = context.get('csrf_token', None)
-                #if csrf_token is not None:
-                    #new_context['csrf_token'] = csrf_token
-                #return self.nodelist.render(new_context)
-
-        #compile_func = curry(generic_tag_compiler, params, defaults, getattr(func, "_decorated_function", func).__name__, InclusionNode)
-        #compile_func.__doc__ = func.__doc__
-        #self.tag(getattr(func, "_decorated_function", func).__name__, compile_func)
-        #return func
-    #return dec
