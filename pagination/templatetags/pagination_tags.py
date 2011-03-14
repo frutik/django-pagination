@@ -4,8 +4,10 @@ except NameError:
     from sets import Set as set
 
 from django import template
+from django.template.context import Context
 from django.http import Http404
 from django.core.paginator import Paginator, InvalidPage
+from django.utils.itercompat import is_iterable
 from django.conf import settings
 
 register = template.Library()
@@ -38,7 +40,7 @@ def do_autopaginate(parser, token):
     if len(split) == 2:
         return AutoPaginateNode(split[1])
     elif len(split) == 3:
-        return AutoPaginateNode(split[1], paginate_by=split[2], 
+        return AutoPaginateNode(split[1], paginate_by=split[2],
             context_var=context_var)
     elif len(split) == 4:
         try:
@@ -55,16 +57,16 @@ def do_autopaginate(parser, token):
 class AutoPaginateNode(template.Node):
     """
     Emits the required objects to allow for Digg-style pagination.
-    
+
     First, it looks in the current context for the variable specified, and using
-    that object, it emits a simple ``Paginator`` and the current page object 
+    that object, it emits a simple ``Paginator`` and the current page object
     into the context names ``paginator`` and ``page_obj``, respectively.
-    
+
     It will then replace the variable specified with only the objects for the
     current page.
-    
+
     .. note::
-        
+
         It is recommended to use *{% paginate %}* after using the autopaginate
         tag.  If you choose not to use *{% paginate %}*, make sure to display the
         list of available pages, or else the application may seem to be buggy.
@@ -111,20 +113,20 @@ def paginate(context, window=DEFAULT_WINDOW, hashtag=''):
     Digg-like display of the available pages, given the current page.  If there
     are too many pages to be displayed before and after the current page, then
     elipses will be used to indicate the undisplayed gap between page numbers.
-    
+
     Requires one argument, ``context``, which should be a dictionary-like data
     structure and must contain the following keys:
-    
+
     ``paginator``
         A ``Paginator`` or ``QuerySetPaginator`` object.
-    
+
     ``page_obj``
-        This should be the result of calling the page method on the 
+        This should be the result of calling the page method on the
         aforementioned ``Paginator`` or ``QuerySetPaginator`` object, given
         the current page.
-    
+
     This same ``context`` dictionary-like data structure may also include:
-    
+
     ``getvars``
         A dictionary of all of the **GET** parameters in the current request.
         This is useful to maintain certain types of state, even when requesting
@@ -187,7 +189,7 @@ def paginate(context, window=DEFAULT_WINDOW, hashtag=''):
             second_list.sort()
             diff = second_list[0] - pages[-1]
             # If there is a gap of two, between the last page of the current
-            # set and the first page of the last set, then we're missing a 
+            # set and the first page of the last set, then we're missing a
             # page.
             if diff == 2:
                 pages.append(second_list[0] - 1)
@@ -204,6 +206,7 @@ def paginate(context, window=DEFAULT_WINDOW, hashtag=''):
             differenced = list(last.difference(current))
             differenced.sort()
             pages.extend(differenced)
+
         to_return = {
             'MEDIA_URL': settings.MEDIA_URL,
             'pages': pages,
@@ -225,6 +228,89 @@ def paginate(context, window=DEFAULT_WINDOW, hashtag=''):
     except KeyError, AttributeError:
         return {}
 
+def default_paginate(*args, **kwargs):
+    """
+    This exists so that we dont wrap paginate. Leaving it open to wrapping late.
+    Were still going to have to wrap paginate _later_, every time we want to use a
+    different template, well have to make one of these wrapper functions.
+    """
+    return paginate(*args, **kwargs)
+
 register.inclusion_tag('pagination/pagination.html', takes_context=True)(
-    paginate)
+    default_paginate)
 register.tag('autopaginate', do_autopaginate)
+
+
+class PaginateWithTemplate(template.Node):
+    def __init__(self, template_path):
+        self.template_path = template.Variable(template_path)
+
+    def redner(self, context):
+        if not getattr(self, 'nodelist', False):
+            from django.template.loader import get_template, select_template
+            if not isinstance(self.template_path, basestring) and is_iterable(self.template_path):
+                t = select_template(self.template_path)
+            else:
+                t = get_template(self.template_path)
+            self.nodelist = t.nodelist
+        # actually isn't this were we should take in the current context?
+        new_context = Context(dict, autoescape=context.autoescape)
+        csrf_token = context.get('csrf_token', None)
+        if csrf_token is not None:
+            new_context['csrf_token'] = csrf_token
+
+        #derp: where do we call paginate? template tags, how the hell do they work
+        return self.nodelist.render(new_context)
+
+def do_paginate_with_template(parser, token):
+    try:
+        tag_name, template_path = token.split_contents()
+    except ValueError:
+        raise template.TemplateSyntaxError, "%r tag requires exactly two arguments" % token.contents.split()[0]
+    return PaginateWithTemplate(template_path)
+
+register.tag('paginate_template', do_pageinate_with_template)
+
+#def inclusion_tag(self, file_name, context_class=Context, takes_context=False):
+    #def dec(func):
+        #params, xx, xxx, defaults = getargspec(func)
+        #if takes_context:
+            #if params[0] == 'context':
+                #params = params[1:]
+            #else:
+                #raise TemplateSyntaxError("Any tag function decorated with takes_context=True must have a first argument of 'context'")
+
+        #class InclusionNode(Node):
+            #def __init__(self, vars_to_resolve):
+                #self.vars_to_resolve = map(Variable, vars_to_resolve)
+
+            #def render(self, context):
+                #resolved_vars = [var.resolve(context) for var in self.vars_to_resolve]
+                #if takes_context:
+                    #args = [context] + resolved_vars
+                #else:
+                    #args = resolved_vars
+
+                #dict = func(*args)
+
+                #if not getattr(self, 'nodelist', False):
+                    #from django.template.loader import get_template, select_template
+                    #if not isinstance(file_name, basestring) and is_iterable(file_name):
+                        #t = select_template(file_name)
+                    #else:
+                        #t = get_template(file_name)
+                    #self.nodelist = t.nodelist
+                #new_context = context_class(dict, autoescape=context.autoescape)
+                ## Copy across the CSRF token, if present, because inclusion
+                ## tags are often used for forms, and we need instructions
+                ## for using CSRF protection to be as simple as possible.
+                #csrf_token = context.get('csrf_token', None)
+                #if csrf_token is not None:
+                    #new_context['csrf_token'] = csrf_token
+                #return self.nodelist.render(new_context)
+
+        #compile_func = curry(generic_tag_compiler, params, defaults, getattr(func, "_decorated_function", func).__name__, InclusionNode)
+        #compile_func.__doc__ = func.__doc__
+        #self.tag(getattr(func, "_decorated_function", func).__name__, compile_func)
+        #return func
+    #return dec
