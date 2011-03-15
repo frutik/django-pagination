@@ -228,16 +228,15 @@ def paginate(context, window=DEFAULT_WINDOW, hashtag=''):
     except KeyError, AttributeError:
         return {}
 
-def default_paginate(*args, **kwargs):
+def default_paginate(context, window=DEFAULT_WINDOW, hashtag=''):
     """
     This exists so that we dont wrap paginate. Leaving it open to wrapping late.
     Were still going to have to wrap paginate _later_, every time we want to use a
     different template, well have to make one of these wrapper functions.
     """
-    return paginate(*args, **kwargs)
+    return paginate(context, window, hashtag)
 
-register.inclusion_tag('pagination/pagination.html', takes_context=True)(
-    default_paginate)
+register.inclusion_tag('pagination/pagination.html', takes_context=True)(default_paginate)
 register.tag('autopaginate', do_autopaginate)
 
 class PaginateWithTemplate(template.Node):
@@ -262,4 +261,4 @@ def do_paginate_with_template(parser, token):
         raise template.TemplateSyntaxError, "%r tag requires exactly two arguments" % token.contents.split()[0]
     return PaginateWithTemplate(template_path)
 
-register.tag('paginate_template', do_pageinate_with_template)
+#register.tag('paginate_template', do_pageinate_with_template)
