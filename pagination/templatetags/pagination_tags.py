@@ -246,6 +246,7 @@ class PaginateWithTemplate(template.Node):
         self.default_template = default_template
 
     def render(self, context):
+        print self.template_path
         template_list = [self.template_path, ]#self.default_template]
         # copy the existing context
         render_context = Context()
@@ -256,12 +257,13 @@ class PaginateWithTemplate(template.Node):
         render_context = paginate(context)
 
         rendered = render_to_string(template_list, render_context)
-        return rendered
+        return ''
 
 @register.tag(name='paginate_template')
 def do_paginate_with_template(parser, token):
     try:
         tag_name, template_path = token.split_contents()
+        print template_path
     except ValueError:
         raise template.TemplateSyntaxError, "%r tag requires exactly two arguments" % token.contents.split()[0]
     return PaginateWithTemplate(template_path, **args)
