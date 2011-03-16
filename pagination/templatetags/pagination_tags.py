@@ -4,7 +4,7 @@ except NameError:
     from sets import Set as set
 
 from django import template
-from django.template.context import Context
+from django.template.context import Context, RequestContext
 from django.template.loader import render_to_string
 from django.http import Http404
 from django.core.paginator import Paginator, InvalidPage
@@ -207,8 +207,10 @@ def paginate(context, window=DEFAULT_WINDOW, hashtag=''):
             differenced = list(last.difference(current))
             differenced.sort()
             pages.extend(differenced)
-
-        to_return = {
+        to_return = Context()
+        to_return.update(context)
+        to_return.update({
+            'STATIC_URL': settings.STATIC_URL,
             'MEDIA_URL': settings.MEDIA_URL,
             'pages': pages,
             'records': records,
@@ -216,15 +218,15 @@ def paginate(context, window=DEFAULT_WINDOW, hashtag=''):
             'paginator': paginator,
             'hashtag': hashtag,
             'is_paginated': paginator.count > paginator.per_page,
-        }
+        })
         if 'request' in context:
             getvars = context['request'].GET.copy()
             if 'page' in getvars:
                 del getvars['page']
             if len(getvars.keys()) > 0:
-                to_return['getvars'] = "&%s" % getvars.urlencode()
+                to_return.update({'getvars': '&%s' % getvars.urlencode()})
             else:
-                to_return['getvars'] = ''
+                to_return.update({'getvars': ''})
         return to_return
     except KeyError, AttributeError:
         return {}
