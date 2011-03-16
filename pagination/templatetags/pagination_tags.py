@@ -261,4 +261,4 @@ def do_paginate_with_template(parser, token):
         raise template.TemplateSyntaxError, "%r tag requires exactly two arguments" % token.contents.split()[0]
     return PaginateWithTemplate(template_path)
 
-#register.tag('paginate_template', do_pageinate_with_template)
+register.tag('paginate_template', do_pageinate_with_template)
