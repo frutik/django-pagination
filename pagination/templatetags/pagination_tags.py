@@ -265,4 +265,4 @@ def do_paginate_with_template(parser, token):
         tag_name, template_path = token.split_contents()
     except ValueError:
         raise template.TemplateSyntaxError, "%r tag requires exactly two arguments" % token.contents.split()[0]
-    return PaginateWithTemplate(template_path, **args)
+    return PaginateWithTemplate(template_path)
