@@ -5,6 +5,7 @@ except NameError:
 
 from django import template
 from django.template.context import Context
+from django.template.loader import render_to_string
 from django.http import Http404
 from django.core.paginator import Paginator, InvalidPage
 from django.utils.itercompat import is_iterable
@@ -241,18 +242,21 @@ register.tag('autopaginate', do_autopaginate)
 
 class PaginateWithTemplate(template.Node):
     def __init__(self, template_path, default_template='pagination/pagination.html'):
-        self.template_path = template.Variable(template_path)
+        self.template_path = template_path
         self.default_template = default_template
 
     def render(self, context):
-        from django.template.loader import get_template, select_template
-        try:
-            t = get_template(self.template_path)
-        except:
-            # wut if dis blows up
-            t = get_template('pagination/pagination.html')
-        c = paginate(context)
-        return t.render(c)
+        template_list = [self.template_path, ]#self.default_template]
+        # copy the existing context
+        render_context = Context()
+        for item in context.dicts:
+            render_context.dicts.append(item.copy())
+
+        # assuming this is how paginate works... probably not a great idea.
+        render_context = paginate(context)
+
+        rendered = render_to_string(template_list, render_context)
+        return rendered
 
 def do_paginate_with_template(parser, token):
     try:
