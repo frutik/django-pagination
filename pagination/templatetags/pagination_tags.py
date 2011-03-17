@@ -248,8 +248,6 @@ class PaginateWithTemplate(template.Node):
         self.default_template = default_template
 
     def render(self, context):
-        print self.template_path
-
         template_list = [self.template_path, ]#self.default_template]
         # copy the existing context
         render_context = Context()
